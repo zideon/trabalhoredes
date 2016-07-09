@@ -16,16 +16,18 @@ public class SegmentoTCP implements Serializable {
     private byte FIN;
     private byte SYN;
     private byte RST;
+    private byte ACKbit;
     private int receiveWindow;
-    private int ACK;
+    private int ACKnum;
+    private int seq;
     private int length;
     private String ipOrigem;
-    private String portaOrigem;
+    private int portaOrigem;
     private String ipDestino;
-    private String portaDestino;
+    private int portaDestino;
     private  byte[] pacote;
 
-    public SegmentoTCP(String ipOrigem, String portaOrigem, String ipDestino, String portaDestino) {
+    public SegmentoTCP(String ipOrigem, int portaOrigem, String ipDestino, int portaDestino) {
         this.ipOrigem = ipOrigem;
         this.portaOrigem = portaOrigem;
         this.ipDestino = ipDestino;
@@ -72,14 +74,6 @@ public class SegmentoTCP implements Serializable {
         this.receiveWindow = receiveWindow;
     }
 
-    public int getACK() {
-        return ACK;
-    }
-
-    public void setACK(int ACK) {
-        this.ACK = ACK;
-    }
-
     public byte[] getPacote() {
         return pacote;
     }
@@ -96,11 +90,11 @@ public class SegmentoTCP implements Serializable {
         this.ipOrigem = ipOrigem;
     }
 
-    public String getPortaOrigem() {
+    public int getPortaOrigem() {
         return portaOrigem;
     }
 
-    public void setPortaOrigem(String portaOrigem) {
+    public void setPortaOrigem(int portaOrigem) {
         this.portaOrigem = portaOrigem;
     }
 
@@ -112,11 +106,11 @@ public class SegmentoTCP implements Serializable {
         this.ipDestino = ipDestino;
     }
 
-    public String getPortaDestino() {
+    public int getPortaDestino() {
         return portaDestino;
     }
 
-    public void setPortaDestino(String portaDestino) {
+    public void setPortaDestino(int portaDestino) {
         this.portaDestino = portaDestino;
     }
 
@@ -126,6 +120,30 @@ public class SegmentoTCP implements Serializable {
 
     public void setLength(int length) {
         this.length = length;
+    }
+
+    public int getSeq() {
+        return seq;
+    }
+
+    public void setSeq(int nSeq) {
+        this.seq = nSeq;
+    }
+
+    public byte getACKbit() {
+        return ACKbit;
+    }
+
+    public void setACKbit(byte ACKbit) {
+        this.ACKbit = ACKbit;
+    }
+
+    public int getACKnum() {
+        return ACKnum;
+    }
+
+    public void setACKnum(int ACKnum) {
+        this.ACKnum = ACKnum;
     }
     
 }

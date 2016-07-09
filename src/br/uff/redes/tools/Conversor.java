@@ -15,7 +15,7 @@ import java.io.ObjectOutputStream;
  *
  * @author fabio
  */
-public class ConvertObjectToByteArray {
+public class Conversor {
     /**
      * Converte um Objeto para um array de bytes
      * @param object

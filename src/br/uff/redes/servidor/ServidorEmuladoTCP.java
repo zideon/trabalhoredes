@@ -6,7 +6,7 @@
 package br.uff.redes.servidor;
 
 import br.uff.redes.segmento.SegmentoTCP;
-import br.uff.redes.tools.ConvertObjectToByteArray;
+import br.uff.redes.tools.Conversor;
 import java.io.*;
 import java.net.*;
 
@@ -19,8 +19,8 @@ class ServidorEmuladoTCP {
         while (true) {
             DatagramPacket receivePacket = new DatagramPacket(receiveData, receiveData.length);
             serverSocket.receive(receivePacket);
-            SegmentoTCP novo = (SegmentoTCP) ConvertObjectToByteArray.convertByteArrayToObject(receivePacket.getData());
-            String sentence = (String) ConvertObjectToByteArray.convertByteArrayToObject(novo.getPacote());
+            SegmentoTCP novo = (SegmentoTCP) Conversor.convertByteArrayToObject(receivePacket.getData());
+            String sentence = (String) Conversor.convertByteArrayToObject(novo.getPacote());
             System.out.println(novo.getIpOrigem());
             System.out.println(novo.getPortaOrigem());
             System.out.println("RECEIVED: " + sentence);
