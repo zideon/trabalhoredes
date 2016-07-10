@@ -16,8 +16,8 @@ import java.util.logging.Logger;
 
 class ServidorEmuladoTCP {
 
-    private List<SocketEmuladoTCP> clientes;
-    private DatagramSocket serverSocket;
+    private volatile List<SocketEmuladoTCP> clientes;
+    private volatile DatagramSocket serverSocket;
 
     public ServidorEmuladoTCP(int port) throws SocketException {
         clientes = new ArrayList<>();
@@ -30,9 +30,10 @@ class ServidorEmuladoTCP {
 
         @Override
         public void run() {
-            byte[] receiveData = new byte[1024];
+           
             boolean continua = true;
             while (continua) {
+                byte[] receiveData = new byte[1024];
                 DatagramPacket receivePacket = new DatagramPacket(receiveData, receiveData.length);
                 try {
                     System.out.println("ouvindo....");
@@ -43,6 +44,7 @@ class ServidorEmuladoTCP {
                         throw new Exception("mensagem destinada a lugar nenhum");
                     }
                     serverSocket.send(cliente.processa(novo));
+                   
                 }  catch (Exception ex) {
                     Logger.getLogger(ServidorEmuladoTCP.class.getName()).log(Level.SEVERE, null, ex);
                 }
@@ -54,13 +56,16 @@ class ServidorEmuladoTCP {
             for (SocketEmuladoTCP cliente : clientes) {
                 if (novo.getIpDestino().equals(cliente.getIpOrigem())
                         && novo.getPortaDestino() == cliente.getPortaOrigem()
-                        && novo.getIpOrigem() == cliente.getIpDestino()
+                        && novo.getIpOrigem().equals(cliente.getIpDestino())
                         && novo.getPortaOrigem() == cliente.getPortaDestino()) {
+                    System.out.println("cliente ja existia");
                     return cliente;
                 }
             }
             if(novo.getSYN()==1){
             SocketEmuladoTCP cliente = new SocketEmuladoTCP(novo.getIpDestino(), novo.getPortaDestino(), novo.getIpOrigem(), novo.getPortaOrigem());
+                System.out.println("cliente foi criado");
+                clientes.add(cliente);
                 return cliente;
             }
             return null;

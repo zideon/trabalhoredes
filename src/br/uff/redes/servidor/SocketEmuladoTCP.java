@@ -88,17 +88,23 @@ public class SocketEmuladoTCP {
 
     public DatagramPacket processa(SegmentoTCP tcp) throws UnknownHostException {
         if (pedidoFechamentoConexao(tcp)) {
+            System.out.println("cliente pediu para fechar conexão");
             return enviarConfirmacaoFecharConexao(tcp);
         } else if (estado == CONECTADO && contemInformacoesDoArquivo(tcp)) {
+            System.out.println("recebeu informações do arquivo");
             estado = ENVIANDO_ACKS;
         } else if (estado == DESCONECTADO && pedidoAberturaConexao(tcp)) {
+            System.out.println("pediu abertura de conexão");
             numeroSequenciaInicialCliente = tcp.getSeq();
             return enviaConfirmacaoAberturaConexao(tcp);
         } else if (estado == CONFIRMANDO_CONEXAO && confirmacaoConexao(tcp)) {
+            System.out.println("recebeu confirmação do 3 hand shake");
             estado = CONECTADO;
         } else if (estado == SOLICITANDO_FECHAMENTO) {
+            System.out.println("servidor pediu para fechar a conexão");
             return enviaPedidoFechamentoConexao(tcp);
         } else if (estado == CONFIRMANDO_FECHAMENTO && pedidoConfirmacaoFechamento(tcp)) {
+            System.out.println("servidor recebeu a confirmação de seu pedido de fechamento de conexão");
             estado = DESCONECTADO;
         } else if (estado == ENVIANDO_ACKS) {
             if (!janelaRecebimento.isTerminou()) {
