@@ -29,6 +29,8 @@ public class Janela {
     int qtdRepeticoes;
     Timer timer;
 
+    boolean tempoCorrendo;
+    int temporizado;
     public Janela(List<SegmentoTCP> segmentos) {
         numerosSeq = new ArrayList<>();
         estados = new ArrayList<>();
@@ -46,7 +48,7 @@ public class Janela {
 
     public void processa(Integer ACK) {
         int n = numerosSeq.indexOf(ACK);
-        // 3 repetições de ACK reenvia o segmento
+        // 3 repetições de ACK reenvia o 
         if (estados.get(n) == ESPERANDOACK) {
             qtdRepeticoes++;
             if (qtdRepeticoes == 3) {
@@ -60,6 +62,11 @@ public class Janela {
                 if (estados.get(i)==ESPERANDOACK){
                     estados.set(i, ACKED);
                     qtdAvancos++;
+                    if(tempoCorrendo && i == temporizado){
+                        tempoCorrendo=false;
+                        timer.cancel();
+                        temporizado=0;
+                    }
                 }
             }
             primeiroSeq = primeiroSeq + qtdAvancos;
@@ -75,9 +82,11 @@ public class Janela {
     public int proximoEnvio() {
         for (int i = primeiroSeq; i <= ultimoSeq; i++) {
             if (estados.get(i) == DISPONIVEL) {
-                if (timer == null) {
+                if (!tempoCorrendo) {
                     timer = new Timer();
                     timer.schedule(new Temporizador(), 60 * 1000);// 60 segundos
+                    tempoCorrendo =true;
+                    temporizado=i; 
                 }
                 estados.set(i, ESPERANDOACK);
                 return numerosSeq.get(i);
@@ -96,7 +105,6 @@ public class Janela {
                 estados.set(i, DISPONIVEL);
             }
             timer.cancel();
-            timer = null;
         }
     }
 }
