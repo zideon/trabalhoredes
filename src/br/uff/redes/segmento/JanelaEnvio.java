@@ -14,7 +14,7 @@ import java.util.TimerTask;
  *
  * @author fabio
  */
-public class Janela {
+public class JanelaEnvio {
 
     public static final int DISPONIVEL = 0;
     public static final int INDISPONIVEL = 1;
@@ -31,7 +31,7 @@ public class Janela {
 
     boolean tempoCorrendo;
     int temporizado;
-    public Janela(List<SegmentoTCP> segmentos) {
+    public JanelaEnvio(List<SegmentoTCP> segmentos) {
         numerosSeq = new ArrayList<>();
         estados = new ArrayList<>();
         primeiroSeq = 0;

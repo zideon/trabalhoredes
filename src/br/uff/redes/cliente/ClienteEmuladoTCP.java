@@ -5,7 +5,7 @@
  */
 package br.uff.redes.cliente;
 
-import br.uff.redes.segmento.Janela;
+import br.uff.redes.segmento.JanelaEnvio;
 import br.uff.redes.segmento.SegmentoTCP;
 import br.uff.redes.tools.ArraySpliter;
 import br.uff.redes.tools.Conversor;
@@ -30,15 +30,11 @@ public class ClienteEmuladoTCP {
     public static final int ENVIANDO_ARQUIVO = 2;
     public static final int DESCONECTADO = 4;
 
-   // valores esperados para abertura conexao
-    private int aberturaSeqCliente;
-    private int aberturaSeqServidor;
-   // valores esperados para um fechamento de conexao
-    private int fechamentoSeqCliente;
-    private int fechamentoSeqServidor;
+   private int numeroSequenciaInicialCliente;
+    private int numeroSequenciaInicialServidor;
     
     private int estado;
-    private Janela janela;
+    private JanelaEnvio janela;
     
     private String ipDest;
     private int portaDest;
@@ -87,7 +83,7 @@ public class ClienteEmuladoTCP {
             InetAddress IPAddress = InetAddress.getByName(ipDest);
             SegmentoTCP novo = new SegmentoTCP(ipOrig, portaOrig, ipDest, portaDest);
             novo.setFIN((byte)1);
-            novo.setSeq(fechamentoSeqCliente);
+            novo.setSeq(numeroSequenciaInicialCliente);
             sendData = Conversor.convertObjectToByteArray(novo);
             DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, IPAddress, portaDest);
             return sendPacket;
@@ -107,7 +103,7 @@ public class ClienteEmuladoTCP {
                     } else if (estado == CONECTADO) {
                         File file = getArquivo();
                         pacotes = getSegmentos(file);
-                        janela = new Janela(pacotes);
+                        janela = new JanelaEnvio(pacotes);
                         estado = ENVIANDO_ARQUIVO;
                     }else if(estado ==ENVIANDO_ARQUIVO){
                         int seq = janela.proximoEnvio();
@@ -127,19 +123,19 @@ public class ClienteEmuladoTCP {
         // metodos auxiliares
         private List<SegmentoTCP> getSegmentos(File file) {
             byte[] todos = Conversor.convertObjectToByteArray(file);
-            List<byte[]> partes = ArraySpliter.split(todos, 1000);
+            int tamanho = 1000;
+            List<byte[]> partes = ArraySpliter.split(todos, tamanho);
             System.out.println("arquivo foi divido em " + partes.size() + " partes");
-            int seq = aberturaSeqCliente+2;
+            int seq = numeroSequenciaInicialCliente+2;
             
             List<SegmentoTCP> segmentos = new ArrayList<>();
             //primeiro segmento vai apenas com informações do arquivo
             SegmentoTCP novo = new SegmentoTCP(ipOrig, portaOrig, ipDest, portaDest);
             novo.setSeq(seq);
-            byte[] informacoes = Conversor.convertObjectToByteArray(file.getName()+"#"+todos.length);
+            byte[] informacoes = Conversor.convertObjectToByteArray(file.getName()+"#"+todos.length+"#"+tamanho);
             novo.setPacote(informacoes);
             segmentos.add(novo);
             seq = seq + informacoes.length;
-            fechamentoSeqCliente = seq + todos.length;
             for (byte[] parte : partes) {
                 novo = new SegmentoTCP(ipOrig, portaOrig, ipDest, portaDest);
                 novo.setSeq(seq);
@@ -168,7 +164,7 @@ public class ClienteEmuladoTCP {
         // metodos de mudança de estado
         public void solicitarAberturaConexao() throws UnknownHostException, IOException {
             estado = SOLICITANDO_CONEXAO;
-            aberturaSeqCliente = new Random().nextInt(9999);
+            numeroSequenciaInicialCliente= new Random().nextInt(9999);
             clienteSocket.send(pacotePedidoConexao());
         }
         public void confirmarAberturaConexao() throws UnknownHostException, IOException {
@@ -191,7 +187,7 @@ public class ClienteEmuladoTCP {
             //envia pedido de conexão
             SegmentoTCP novo = new SegmentoTCP(ipOrig, portaOrig, ipDest, portaDest);
             novo.setSYN((byte) 1);
-            novo.setSeq(aberturaSeqCliente);
+            novo.setSeq(numeroSequenciaInicialCliente);
             sendData = Conversor.convertObjectToByteArray(novo);
             DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, IPAddress, portaDest);
             return sendPacket;
@@ -203,7 +199,7 @@ public class ClienteEmuladoTCP {
             //envia pedido de conexão
             SegmentoTCP novo = new SegmentoTCP(ipOrig, portaOrig, ipDest, portaDest);
             novo.setACKbit((byte) 1);
-            novo.setACKnum(aberturaSeqServidor+1);
+            novo.setACKnum(numeroSequenciaInicialServidor+1);
             sendData = Conversor.convertObjectToByteArray(novo);
             DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, IPAddress, portaDest);
             return sendPacket;
@@ -221,7 +217,7 @@ public class ClienteEmuladoTCP {
             InetAddress IPAddress = InetAddress.getByName(ipDest);
             SegmentoTCP novo = new SegmentoTCP(ipOrig, portaOrig, ipDest, portaDest);
             novo.setACKbit((byte) 1);
-            novo.setACKnum(fechamentoSeqServidor+1);
+            novo.setACKnum(numeroSequenciaInicialServidor+1);
             sendData = Conversor.convertObjectToByteArray(novo);
             DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, IPAddress, portaDest);
             return sendPacket;
@@ -241,10 +237,9 @@ public class ClienteEmuladoTCP {
                     SegmentoTCP seg = (SegmentoTCP) Conversor.convertByteArrayToObject(receivePacket.getData());
                     if (confirmaAbrirConexao(seg) && estado == SOLICITANDO_CONEXAO) {
                         estado = CONEXAO_ACEITA;
-                        aberturaSeqServidor = seg.getSeq();
+                        numeroSequenciaInicialServidor = seg.getSeq();
                     } else if ( servidorSolicitouFecharConexao(seg)) {
-                        estado = CONFIRMANDO_FECHAMENTO;// envia ack de resposta
-                        fechamentoSeqServidor = seg.getSeq()+1;
+                        estado = CONFIRMANDO_FECHAMENTO;// envia ack de resposta 
                     }else if(estado == SOLICITANDO_FECHAMENTO && servidorConfirmouFecharConexao(seg)){
                         estado = DESCONECTADO;
                     }else if(estado == ENVIANDO_ARQUIVO){
@@ -257,13 +252,13 @@ public class ClienteEmuladoTCP {
         }
         // metodos que checam qual é a confirmação
         public boolean confirmaAbrirConexao(SegmentoTCP seg) {
-            return (seg.getSYN() == 1 && seg.getACKbit() == 1 && seg.getACKnum() == (aberturaSeqCliente + 1));
+            return (seg.getSYN() == 1 && seg.getACKbit() == 1 && seg.getACKnum() == (numeroSequenciaInicialCliente + 1));
         }
         public boolean servidorSolicitouFecharConexao(SegmentoTCP seg) {
             return seg.getFIN() == 1;
         }
         public boolean servidorConfirmouFecharConexao(SegmentoTCP seg){
-            return (seg.getACKnum()==fechamentoSeqCliente+1 ) && seg.getACKbit()==1;
+            return (seg.getACKnum()==numeroSequenciaInicialCliente+1 ) && seg.getACKbit()==1;
         }
     }
 }
