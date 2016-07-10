@@ -90,5 +90,7 @@ public class JanelaRecebimento {
     public void setTerminou(boolean terminou) {
         this.terminou = terminou;
     }
-
+    public int indice(){
+        return numerosSeq.indexOf(ultimoACK);
+    }
 }

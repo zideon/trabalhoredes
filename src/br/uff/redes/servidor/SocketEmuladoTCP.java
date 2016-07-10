@@ -6,6 +6,7 @@
 package br.uff.redes.servidor;
 
 import br.uff.redes.segmento.JanelaRecebimento;
+import br.uff.redes.segmento.SegmentoComparator;
 import br.uff.redes.segmento.SegmentoTCP;
 import br.uff.redes.tools.Conversor;
 import java.net.DatagramPacket;
@@ -104,18 +105,21 @@ public class SocketEmuladoTCP {
                 if(janelaRecebimento.processa(tcp.getSeq())){
                     pacotes.add(tcp);
                     for (SegmentoTCP pacote : buffer) {
-                        
+                        if(janelaRecebimento.processa(pacote.getSeq())){
+                            buffer.remove(pacote);
+                        }
                     }
                 }else{// aqui que vou fazer espaço do buffer digamos que seja 4
                    if(!buffer.contains(tcp) && buffer.size()<tamanhoBuffer){
-                       buffer.add(tcp);
+                      adicionarBufferOrdenado(tcp); 
+                   }else if(!buffer.contains(tcp) && buffer.size()==tamanhoBuffer){
+                       if(tcp.compareTo(buffer.get(buffer.size()-1))==-1){
+                           buffer.remove((buffer.size()-1));
+                           adicionarBufferOrdenado(tcp);
+                       }
                    }
                 }
-                if (!pacotes.contains(tcp)) {
-                    for (SegmentoTCP pacote : buffer) {
-                        
-                    }
-                }
+                return enviarACK(tcp);
             } else {
                 estado = CONECTADO;
             }
@@ -191,5 +195,22 @@ public class SocketEmuladoTCP {
 
     private boolean pedidoConfirmacaoFechamento(SegmentoTCP tcp) {
         return tcp.getACKbit() == 1 && tcp.getACKnum() == (numeroSequenciaInicialServidor + 1);
+    }
+
+    private void adicionarBufferOrdenado(SegmentoTCP tcp) {
+        buffer.add(tcp);
+        buffer.sort(new SegmentoComparator());
+    }
+
+    private DatagramPacket enviarACK(SegmentoTCP tcp) throws UnknownHostException {
+        byte[] sendData = new byte[1024];
+        InetAddress IPAddress = InetAddress.getByName(ipDestino);
+        SegmentoTCP novo = new SegmentoTCP(ipOrigem, portaOrigem, ipDestino, portaDestino);
+        novo.setSeq(numeroSequenciaInicialServidor+ janelaRecebimento.indice());
+        novo.setACKbit((byte) 1);
+        novo.setACKnum(janelaRecebimento.getUltimoACK());
+        sendData = Conversor.convertObjectToByteArray(novo);
+        DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, IPAddress, portaDestino);
+        return sendPacket;
     }
 }

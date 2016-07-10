@@ -19,16 +19,23 @@ class ServidorEmuladoTCP {
     private List<SocketEmuladoTCP> clientes;
     private DatagramSocket serverSocket;
 
+    public ServidorEmuladoTCP(int port) throws SocketException {
+        clientes = new ArrayList<>();
+        serverSocket = new DatagramSocket(port);
+        new Thread(new Ouvinte()).start();
+    }
+    
+    
     public class Ouvinte implements Runnable {
 
         @Override
         public void run() {
-            clientes = new ArrayList<>();
             byte[] receiveData = new byte[1024];
             boolean continua = true;
             while (continua) {
                 DatagramPacket receivePacket = new DatagramPacket(receiveData, receiveData.length);
                 try {
+                    System.out.println("ouvindo....");
                     serverSocket.receive(receivePacket);
                     SegmentoTCP novo = (SegmentoTCP) Conversor.convertByteArrayToObject(receivePacket.getData());
                     SocketEmuladoTCP cliente = getCliente(novo);
@@ -61,24 +68,6 @@ class ServidorEmuladoTCP {
     }
 
     public static void main(String args[]) throws Exception {
-        DatagramSocket serverSocket = new DatagramSocket(9876);
-        byte[] receiveData = new byte[1024];
-        byte[] sendData = new byte[1024];
-        while (true) {
-            DatagramPacket receivePacket = new DatagramPacket(receiveData, receiveData.length);
-            serverSocket.receive(receivePacket);
-            SegmentoTCP novo = (SegmentoTCP) Conversor.convertByteArrayToObject(receivePacket.getData());
-            String sentence = (String) Conversor.convertByteArrayToObject(novo.getPacote());
-            System.out.println(novo.getIpOrigem());
-            System.out.println(novo.getPortaOrigem());
-            System.out.println("RECEIVED: " + sentence);
-            InetAddress IPAddress = receivePacket.getAddress();
-            int port = receivePacket.getPort();
-            String capitalizedSentence = sentence.toUpperCase();
-            sendData = capitalizedSentence.getBytes();
-            DatagramPacket sendPacket
-                    = new DatagramPacket(sendData, sendData.length, IPAddress, port);
-            serverSocket.send(sendPacket);
-        }
+        ServidorEmuladoTCP servidor = new ServidorEmuladoTCP(456);
     }
 }

@@ -11,7 +11,7 @@ import java.io.Serializable;
  *
  * @author fabio
  */
-public class SegmentoTCP implements Serializable {
+public class SegmentoTCP implements Serializable, Comparable<SegmentoTCP>{
     private int checksum;
     private byte FIN;
     private byte SYN;
@@ -144,6 +144,18 @@ public class SegmentoTCP implements Serializable {
 
     public void setACKnum(int ACKnum) {
         this.ACKnum = ACKnum;
+    }
+
+    @Override
+    public int compareTo(SegmentoTCP o) {
+        if(this.seq==o.getSeq()){
+            return 0;
+        }else if(this.seq<o.getSeq()){
+            return -1;
+        }else if(this.seq>o.getSeq()){
+            return 1;
+        }
+        return 0;
     }
     
 }
