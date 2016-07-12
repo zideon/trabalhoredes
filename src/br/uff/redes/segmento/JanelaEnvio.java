@@ -31,15 +31,17 @@ public class JanelaEnvio {
     Timer timer;
 
     boolean tempoCorrendo;
+   
     int temporizado;
 
     public JanelaEnvio(List<SegmentoTCP> segmentos, int tamanho) {
         this.numerosSeq = new ArrayList<>();
         this.estados = new ArrayList<>();
         this.primeiroSeq = 0;
-        this.ultimoSeq = tamanho;
+        this.ultimoSeq = tamanho - 1;
         this.tamanho = tamanho;
         this.ACKrepetido = -1;
+     
         for (int i = 0; i < segmentos.size(); i++) {
             numerosSeq.add(segmentos.get(i).getSeq());
             if (i < tamanho) {
@@ -48,10 +50,16 @@ public class JanelaEnvio {
                 estados.add(INDISPONIVEL);
             }
         }
+        if (numerosSeq.size() <= tamanho) {
+            ultimoSeq = tamanho - 1;
+        }
     }
 
     public void processa(Integer ACK) {
         int n = numerosSeq.indexOf(ACK);
+        if(n==numerosSeq.size()-1){
+            System.out.println("enviar o final");
+        }
         // 3 repetições de ACK reenvia o 
         if (n != -1) {
             if (estados.get(n) == ESPERANDOACK) {
@@ -61,7 +69,9 @@ public class JanelaEnvio {
                     qtdRepeticoes++;
                     if (qtdRepeticoes == 3) {
                         System.out.println("segmento perdido 3 acks repetidos");
-                        estados.set(n, DISPONIVEL);
+                        for (int i = primeiroSeq; i <= ultimoSeq; i++) {
+                            estados.set(i, DISPONIVEL);
+                        }
                         qtdRepeticoes = 0;
                     }
                 }
@@ -80,13 +90,20 @@ public class JanelaEnvio {
                         }
                     }
                 }
-                primeiroSeq = primeiroSeq + qtdAvancos;
-                for (int i = ultimoSeq + 1; i <= ultimoSeq + qtdAvancos; i++) {
+                //andar com a janela
+                int limite = ultimoSeq + qtdAvancos;
+                if ((ultimoSeq + qtdAvancos) >= numerosSeq.size()) {
+                    limite = numerosSeq.size() - 1;
+                }
+
+                for (int i = ultimoSeq + 1; i <= limite; i++) {
                     if (estados.get(i) == INDISPONIVEL) {
                         estados.set(i, DISPONIVEL);
                     }
                 }
-                ultimoSeq = ultimoSeq + qtdAvancos;
+                primeiroSeq = primeiroSeq + qtdAvancos;
+                ultimoSeq = limite;
+
             }
         }
     }
@@ -119,4 +136,5 @@ public class JanelaEnvio {
             timer.cancel();
         }
     }
+
 }

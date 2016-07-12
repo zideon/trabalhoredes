@@ -33,7 +33,7 @@ class ServidorEmuladoTCP {
 
             boolean continua = true;
             while (continua) {
-                byte[] receiveData = new byte[2048];
+                byte[] receiveData = new byte[20480];
                 DatagramPacket receivePacket = new DatagramPacket(receiveData, receiveData.length);
                 try {
                     System.out.println("ouvindo....");

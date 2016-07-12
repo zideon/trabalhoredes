@@ -21,52 +21,43 @@ public class JanelaRecebimento {
     int ultimoACK;
     boolean terminou;
 
-    public JanelaRecebimento(int seqInicial, int tamanhoInformacao, int tamanho, int corte) {
-        int n = tamanho / corte;
-        int resto = tamanho % corte;
+    public JanelaRecebimento(int seqInicial, int qtdPacotes, int tamanhoInformacao, int tamanhoPacote) {
+
         numerosSeq = new ArrayList<>();
         estados = new ArrayList<>();
         numerosSeq.add(seqInicial);
         estados.add(NAORECEBIDO);
         seqInicial = seqInicial + tamanhoInformacao;
-        for (int i = 0; i < n; i++) {
-            if (i != (n - 1)) {
-                numerosSeq.add(seqInicial + i * corte);
-            } else {
-                numerosSeq.add(seqInicial + (i - 1) * corte + resto);
-            }
+        for (int i = 0; i < qtdPacotes - 1; i++) {
+            numerosSeq.add(seqInicial);
             estados.add(NAORECEBIDO);
+            //defini estado do proximo
+
+            seqInicial += tamanhoPacote;
+
         }
 
         System.out.print("seq " + 0 + ":" + numerosSeq.get(0) + " ");
-        System.out.print("seq " + (numerosSeq.size() - 1) + ":" + numerosSeq.get(numerosSeq.size() - 1) + " ");
-        System.out.println("");
+        System.out.print("seq " + (numerosSeq.size() - 1) + ":" + numerosSeq.get(numerosSeq.size() - 1));
+        System.out.println(
+                "");
         ultimoACK = -1;
         terminou = false;
     }
 
-    // true para pacote na ordem correta
+// true para pacote na ordem correta
     public boolean processa(int seq) {
         int indice = numerosSeq.indexOf(seq);
-        if (estados.get(indice) == NAORECEBIDO) {
+        if (indice != -1) {
+            if (estados.get(indice) == NAORECEBIDO) {
 
-            if (indice == 0) {
-                estados.set(indice, RECEBIDO);
-                if (indice + 1 < numerosSeq.size()) {
-                    ultimoACK = numerosSeq.get(indice + 1);
-
-                } else {
-                    terminou = true;
-                }
-                return true;
-            } else {
-                boolean ordemCorreta = true;
-                for (int i = indice - 1; i > 0; i--) {
-                    if (estados.get(i) == NAORECEBIDO) {
-                        ordemCorreta = false;
+                if (indice == estados.size() - 1) {
+                    if (estados.get(indice - 1) == RECEBIDO) {
+                         System.out.println("terminou");
+                            terminou = true;
+                            return true;
                     }
-                }
-                if (ordemCorreta) {
+                } else if (indice == 0) {
                     estados.set(indice, RECEBIDO);
                     if (indice + 1 < numerosSeq.size()) {
                         ultimoACK = numerosSeq.get(indice + 1);
@@ -75,6 +66,21 @@ public class JanelaRecebimento {
                         terminou = true;
                     }
                     return true;
+                } else {
+                    boolean ordemCorreta = true;
+
+                    if (estados.get(indice - 1) == NAORECEBIDO) {
+                        ordemCorreta = false;
+                    }
+
+                    if (ordemCorreta) {
+                        estados.set(indice, RECEBIDO);
+                        if (indice + 1 < numerosSeq.size()) {
+                            ultimoACK = numerosSeq.get(indice + 1);
+
+                        } 
+                        return true;
+                    }
                 }
             }
         }

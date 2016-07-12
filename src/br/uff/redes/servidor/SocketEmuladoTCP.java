@@ -10,12 +10,18 @@ import br.uff.redes.segmento.SegmentoComparator;
 import br.uff.redes.segmento.SegmentoTCP;
 import br.uff.redes.tools.ArrayJoin;
 import br.uff.redes.tools.ObjectConverter;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  *
@@ -45,7 +51,8 @@ public class SocketEmuladoTCP {
     private int tamanhoBuffer;
     private String nomeArquivo;
     private int tamanhoArquivo;
-    private int corte;
+    private int tamanhoPacote;
+    private int qtdPacotes;
 
     public SocketEmuladoTCP(String ipOrigem, int portaOrigem, String ipDestino, int portaDestino) {
         this.ipOrigem = ipOrigem;
@@ -136,12 +143,23 @@ public class SocketEmuladoTCP {
             } else {
                 System.out.println("TERMINOU TRANSFERENCIA DO ARQUIVO");
                 List<byte[]> bytes = new ArrayList<>();
+                System.out.println("FORAM BAIXADAS "+ bytes.size()+ " PARTES");
                 for (SegmentoTCP pacote : pacotes) {
                     bytes.add(pacote.getPacote());
                 }
                 byte[] arquivoCompleto = ArrayJoin.combine(bytes);
                 System.out.println("arquivo completo tem "+arquivoCompleto.length+" bytes");
+                try {
+                    FileOutputStream arq = new FileOutputStream(new File(nomeArquivo));
+                    arq.write(arquivoCompleto);
+                    arq.close();
+                } catch (FileNotFoundException ex) {
+                    Logger.getLogger(SocketEmuladoTCP.class.getName()).log(Level.SEVERE, null, ex);
+                } catch (IOException ex) {
+                    Logger.getLogger(SocketEmuladoTCP.class.getName()).log(Level.SEVERE, null, ex);
+                }
                 estado = CONECTADO;
+                return enviarACKArquivoCompleto();
             }
         }
         return null;
@@ -153,7 +171,7 @@ public class SocketEmuladoTCP {
 
     private DatagramPacket enviaConfirmacaoAberturaConexao(SegmentoTCP tcp) throws UnknownHostException {
         estado = CONFIRMANDO_CONEXAO;
-        byte[] sendData = new byte[2048];
+        byte[] sendData = new byte[20480];
         InetAddress IPAddress = InetAddress.getByName(ipDestino);
         SegmentoTCP novo = new SegmentoTCP(ipOrigem, portaOrigem, ipDestino, portaDestino);
         novo.setSYN((byte) 1);
@@ -171,7 +189,7 @@ public class SocketEmuladoTCP {
 
     private DatagramPacket enviarConfirmacaoFecharConexao(SegmentoTCP tcp) throws UnknownHostException {
         estado = DESCONECTADO;
-        byte[] sendData = new byte[2048];
+        byte[] sendData = new byte[20480];
         InetAddress IPAddress = InetAddress.getByName(ipDestino);
         SegmentoTCP novo = new SegmentoTCP(ipOrigem, portaOrigem, ipDestino, portaDestino);
         novo.setACKbit((byte) 1);
@@ -191,13 +209,16 @@ public class SocketEmuladoTCP {
             String[] split = informacoes.split("#");
             nomeArquivo = split[0];
             tamanhoArquivo = Integer.parseInt(split[1]);
-            corte = Integer.parseInt(split[2]);
+            qtdPacotes = Integer.parseInt(split[2]);
+            tamanhoPacote = Integer.parseInt(split[3]);
             System.out.println("nome do arquivo :"+nomeArquivo);
             System.out.println("tamanho do arquivo:"+tamanhoArquivo);
-            System.out.println("tamanho dos pacotes:"+corte);
-            janelaRecebimento = new JanelaRecebimento(numeroSequenciaInicialCliente + 2 ,tcp.getPacote().length, tamanhoArquivo, corte);
+            System.out.println("tamanho dos pacotes:"+tamanhoPacote);
+            System.out.println("quantidade de pacotes "+ qtdPacotes);
+            janelaRecebimento = new JanelaRecebimento(numeroSequenciaInicialCliente + 2 ,qtdPacotes,tcp.getPacote().length, tamanhoPacote);
             return true;
-        } catch (Exception ex) {
+
+        }catch (Exception ex) {
             System.out.println(ex.getMessage());
             return false;
         }
@@ -206,7 +227,7 @@ public class SocketEmuladoTCP {
 
     private DatagramPacket enviaPedidoFechamentoConexao(SegmentoTCP tcp) throws UnknownHostException {
         estado = CONFIRMANDO_FECHAMENTO;
-        byte[] sendData = new byte[2048];
+        byte[] sendData = new byte[20480];
         InetAddress IPAddress = InetAddress.getByName(ipDestino);
         SegmentoTCP novo = new SegmentoTCP(ipOrigem, portaOrigem, ipDestino, portaDestino);
         novo.setFIN((byte) 1);
@@ -226,7 +247,7 @@ public class SocketEmuladoTCP {
     }
 
     private DatagramPacket enviarACK() throws UnknownHostException {
-        byte[] sendData = new byte[2048];
+        byte[] sendData = new byte[20480];
         
         InetAddress IPAddress = InetAddress.getByName(ipDestino);
         SegmentoTCP novo = new SegmentoTCP(ipOrigem, portaOrigem, ipDestino, portaDestino);
@@ -311,12 +332,17 @@ public class SocketEmuladoTCP {
         this.tamanhoArquivo = tamanhoArquivo;
     }
 
-    public int getCorte() {
-        return corte;
+    private DatagramPacket enviarACKArquivoCompleto() throws UnknownHostException {
+        byte[] sendData = new byte[20480];
+        InetAddress IPAddress = InetAddress.getByName(ipDestino);
+        SegmentoTCP novo = new SegmentoTCP(ipOrigem, portaOrigem, ipDestino, portaDestino);
+        novo.setSeq(numeroSequenciaInicialServidor);
+        novo.setACKbit((byte) 1);
+        novo.setACKnum(-100);
+        sendData = ObjectConverter.convertObjectToByteArray(novo);
+        DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, IPAddress, portaDestino);
+        return sendPacket;
     }
 
-    public void setCorte(int corte) {
-        this.corte = corte;
-    }
-    
+
 }
