@@ -5,8 +5,9 @@
  */
 package br.uff.redes.servidor;
 
+import br.uff.redes.cliente.ClienteEmuladoTCP;
 import br.uff.redes.segmento.SegmentoTCP;
-import br.uff.redes.tools.Conversor;
+import br.uff.redes.tools.ObjectConverter;
 import java.io.IOException;
 import java.net.*;
 import java.util.ArrayList;
@@ -24,28 +25,34 @@ class ServidorEmuladoTCP {
         serverSocket = new DatagramSocket(port);
         new Thread(new Ouvinte()).start();
     }
-    
-    
+
     public class Ouvinte implements Runnable {
 
         @Override
         public void run() {
-           
+
             boolean continua = true;
             while (continua) {
-                byte[] receiveData = new byte[1024];
+                byte[] receiveData = new byte[2048];
                 DatagramPacket receivePacket = new DatagramPacket(receiveData, receiveData.length);
                 try {
                     System.out.println("ouvindo....");
                     serverSocket.receive(receivePacket);
-                    SegmentoTCP novo = (SegmentoTCP) Conversor.convertByteArrayToObject(receivePacket.getData());
+                    SegmentoTCP novo = (SegmentoTCP) ObjectConverter.convertByteArrayToObject(receivePacket.getData());
+                    System.out.println("chegou segmento TCP de numero de sequencia " + novo.getSeq());
                     SocketEmuladoTCP cliente = getCliente(novo);
-                    if(cliente == null){
+                    if (cliente == null) {
                         throw new Exception("mensagem destinada a lugar nenhum");
                     }
-                    serverSocket.send(cliente.processa(novo));
-                   
-                }  catch (Exception ex) {
+                    DatagramPacket data = cliente.processa(novo);
+                    if (data == null) {
+                        System.out.println("datagram nulo");
+                    } else {
+                        serverSocket.send(data);
+                        System.out.println("enviou data");
+                    }
+
+                } catch (Exception ex) {
                     Logger.getLogger(ServidorEmuladoTCP.class.getName()).log(Level.SEVERE, null, ex);
                 }
 
@@ -62,8 +69,8 @@ class ServidorEmuladoTCP {
                     return cliente;
                 }
             }
-            if(novo.getSYN()==1){
-            SocketEmuladoTCP cliente = new SocketEmuladoTCP(novo.getIpDestino(), novo.getPortaDestino(), novo.getIpOrigem(), novo.getPortaOrigem());
+            if (novo.getSYN() == 1) {
+                SocketEmuladoTCP cliente = new SocketEmuladoTCP(novo.getIpDestino(), novo.getPortaDestino(), novo.getIpOrigem(), novo.getPortaOrigem());
                 System.out.println("cliente foi criado");
                 clientes.add(cliente);
                 return cliente;

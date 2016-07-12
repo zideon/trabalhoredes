@@ -21,11 +21,14 @@ public class JanelaRecebimento {
     int ultimoACK;
     boolean terminou;
 
-    public JanelaRecebimento(int seqInicial, int tamanho, int corte) {
+    public JanelaRecebimento(int seqInicial, int tamanhoInformacao, int tamanho, int corte) {
         int n = tamanho / corte;
         int resto = tamanho % corte;
         numerosSeq = new ArrayList<>();
         estados = new ArrayList<>();
+        numerosSeq.add(seqInicial);
+        estados.add(NAORECEBIDO);
+        seqInicial = seqInicial + tamanhoInformacao;
         for (int i = 0; i < n; i++) {
             if (i != (n - 1)) {
                 numerosSeq.add(seqInicial + i * corte);
@@ -34,12 +37,15 @@ public class JanelaRecebimento {
             }
             estados.add(NAORECEBIDO);
         }
+
+        System.out.print("seq " + 0 + ":" + numerosSeq.get(0) + " ");
+        System.out.print("seq " + (numerosSeq.size() - 1) + ":" + numerosSeq.get(numerosSeq.size() - 1) + " ");
+        System.out.println("");
         ultimoACK = -1;
         terminou = false;
     }
 
     // true para pacote na ordem correta
-
     public boolean processa(int seq) {
         int indice = numerosSeq.indexOf(seq);
         if (estados.get(indice) == NAORECEBIDO) {
@@ -90,7 +96,8 @@ public class JanelaRecebimento {
     public void setTerminou(boolean terminou) {
         this.terminou = terminou;
     }
-    public int indice(){
+
+    public int indice() {
         return numerosSeq.indexOf(ultimoACK);
     }
 }

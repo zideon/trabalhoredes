@@ -27,15 +27,19 @@ public class JanelaEnvio {
     int primeiroSeq;
     int ultimoSeq;
     int qtdRepeticoes;
+    int ACKrepetido;
     Timer timer;
 
     boolean tempoCorrendo;
     int temporizado;
-    public JanelaEnvio(List<SegmentoTCP> segmentos) {
-        numerosSeq = new ArrayList<>();
-        estados = new ArrayList<>();
-        primeiroSeq = 0;
-        ultimoSeq = tamanho;
+
+    public JanelaEnvio(List<SegmentoTCP> segmentos, int tamanho) {
+        this.numerosSeq = new ArrayList<>();
+        this.estados = new ArrayList<>();
+        this.primeiroSeq = 0;
+        this.ultimoSeq = tamanho;
+        this.tamanho = tamanho;
+        this.ACKrepetido = -1;
         for (int i = 0; i < segmentos.size(); i++) {
             numerosSeq.add(segmentos.get(i).getSeq());
             if (i < tamanho) {
@@ -49,33 +53,41 @@ public class JanelaEnvio {
     public void processa(Integer ACK) {
         int n = numerosSeq.indexOf(ACK);
         // 3 repetições de ACK reenvia o 
-        if (estados.get(n) == ESPERANDOACK) {
-            qtdRepeticoes++;
-            if (qtdRepeticoes == 3) {
-                estados.set(n, DISPONIVEL);
-                qtdRepeticoes = 0;
-            }
-            //andando com a janela após receber os ACKS acumulativos
-        } else {
-            int qtdAvancos = 0;
-            for (int i = n - 1; i >= primeiroSeq; i--) {
-                if (estados.get(i)==ESPERANDOACK){
-                    estados.set(i, ACKED);
-                    qtdAvancos++;
-                    if(tempoCorrendo && i == temporizado){
-                        tempoCorrendo=false;
-                        timer.cancel();
-                        temporizado=0;
+        if (n != -1) {
+            if (estados.get(n) == ESPERANDOACK) {
+                if (ACKrepetido != ACK) {
+                    ACKrepetido = numerosSeq.get(n);
+                } else {
+                    qtdRepeticoes++;
+                    if (qtdRepeticoes == 3) {
+                        System.out.println("segmento perdido 3 acks repetidos");
+                        estados.set(n, DISPONIVEL);
+                        qtdRepeticoes = 0;
                     }
                 }
-            }
-            primeiroSeq = primeiroSeq + qtdAvancos;
-            for (int i = ultimoSeq+1; i <=ultimoSeq+qtdAvancos ; i++) {
-                if (estados.get(i)==INDISPONIVEL){
-                    estados.set(i, DISPONIVEL);
+                //andando com a janela após receber os ACKS acumulativos
+            } else {
+                int qtdAvancos = 0;
+                for (int i = n - 1; i >= primeiroSeq; i--) {
+                    if (estados.get(i) == ESPERANDOACK) {
+                        System.out.println("ACKED " + numerosSeq.get(i));
+                        estados.set(i, ACKED);
+                        qtdAvancos++;
+                        if (tempoCorrendo && i == temporizado) {
+                            tempoCorrendo = false;
+                            timer.cancel();
+                            temporizado = 0;
+                        }
+                    }
                 }
+                primeiroSeq = primeiroSeq + qtdAvancos;
+                for (int i = ultimoSeq + 1; i <= ultimoSeq + qtdAvancos; i++) {
+                    if (estados.get(i) == INDISPONIVEL) {
+                        estados.set(i, DISPONIVEL);
+                    }
+                }
+                ultimoSeq = ultimoSeq + qtdAvancos;
             }
-            ultimoSeq = ultimoSeq + qtdAvancos;
         }
     }
 
@@ -85,8 +97,8 @@ public class JanelaEnvio {
                 if (!tempoCorrendo) {
                     timer = new Timer();
                     timer.schedule(new Temporizador(), 60 * 1000);// 60 segundos
-                    tempoCorrendo =true;
-                    temporizado=i; 
+                    tempoCorrendo = true;
+                    temporizado = i;
                 }
                 estados.set(i, ESPERANDOACK);
                 return numerosSeq.get(i);

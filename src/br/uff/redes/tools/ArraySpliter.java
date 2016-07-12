@@ -16,7 +16,7 @@ import java.util.List;
 public class ArraySpliter {
 
     public static List<byte[]> split(byte[] input, int segmentSize) {
-        int x = 3;  // chunk size
+        int x = segmentSize;  // chunk size
         int len = input.length;
         List<byte[]> output = new ArrayList<>();
         for (int i = 0; i < len - x + 1; i += x) {

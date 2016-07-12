@@ -8,10 +8,12 @@ package br.uff.redes.servidor;
 import br.uff.redes.segmento.JanelaRecebimento;
 import br.uff.redes.segmento.SegmentoComparator;
 import br.uff.redes.segmento.SegmentoTCP;
-import br.uff.redes.tools.Conversor;
+import br.uff.redes.tools.ArrayJoin;
+import br.uff.redes.tools.ObjectConverter;
 import java.net.DatagramPacket;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
@@ -51,6 +53,8 @@ public class SocketEmuladoTCP {
         this.ipDestino = ipDestino;
         this.portaDestino = portaDestino;
         this.numeroSequenciaInicialServidor = new Random().nextInt(9999);
+        this.pacotes = new ArrayList<>();
+        this.buffer = new ArrayList<>();
         estado = DESCONECTADO;
     }
 
@@ -93,6 +97,9 @@ public class SocketEmuladoTCP {
         } else if (estado == CONECTADO && contemInformacoesDoArquivo(tcp)) {
             System.out.println("recebeu informações do arquivo");
             estado = ENVIANDO_ACKS;
+            if(janelaRecebimento.processa(tcp.getSeq())){
+                 return enviarACK();
+            }
         } else if (estado == DESCONECTADO && pedidoAberturaConexao(tcp)) {
             System.out.println("pediu abertura de conexão");
             numeroSequenciaInicialCliente = tcp.getSeq();
@@ -119,14 +126,21 @@ public class SocketEmuladoTCP {
                    if(!buffer.contains(tcp) && buffer.size()<tamanhoBuffer){
                       adicionarBufferOrdenado(tcp); 
                    }else if(!buffer.contains(tcp) && buffer.size()==tamanhoBuffer){
-                       if(tcp.compareTo(buffer.get(buffer.size()-1))==-1){
+                       if(buffer.size()>=1 && tcp.compareTo(buffer.get(buffer.size()-1))==-1){
                            buffer.remove((buffer.size()-1));
                            adicionarBufferOrdenado(tcp);
                        }
                    }
                 }
-                return enviarACK(tcp);
+                return enviarACK();
             } else {
+                System.out.println("TERMINOU TRANSFERENCIA DO ARQUIVO");
+                List<byte[]> bytes = new ArrayList<>();
+                for (SegmentoTCP pacote : pacotes) {
+                    bytes.add(pacote.getPacote());
+                }
+                byte[] arquivoCompleto = ArrayJoin.combine(bytes);
+                System.out.println("arquivo completo tem "+arquivoCompleto.length+" bytes");
                 estado = CONECTADO;
             }
         }
@@ -139,14 +153,14 @@ public class SocketEmuladoTCP {
 
     private DatagramPacket enviaConfirmacaoAberturaConexao(SegmentoTCP tcp) throws UnknownHostException {
         estado = CONFIRMANDO_CONEXAO;
-        byte[] sendData = new byte[1024];
+        byte[] sendData = new byte[2048];
         InetAddress IPAddress = InetAddress.getByName(ipDestino);
         SegmentoTCP novo = new SegmentoTCP(ipOrigem, portaOrigem, ipDestino, portaDestino);
         novo.setSYN((byte) 1);
         novo.setSeq(numeroSequenciaInicialServidor);
         novo.setACKbit((byte) 1);
         novo.setACKnum(numeroSequenciaInicialCliente + 1);
-        sendData = Conversor.convertObjectToByteArray(novo);
+        sendData = ObjectConverter.convertObjectToByteArray(novo);
         DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, IPAddress, portaDestino);
         return sendPacket;
     }
@@ -157,12 +171,12 @@ public class SocketEmuladoTCP {
 
     private DatagramPacket enviarConfirmacaoFecharConexao(SegmentoTCP tcp) throws UnknownHostException {
         estado = DESCONECTADO;
-        byte[] sendData = new byte[1024];
+        byte[] sendData = new byte[2048];
         InetAddress IPAddress = InetAddress.getByName(ipDestino);
         SegmentoTCP novo = new SegmentoTCP(ipOrigem, portaOrigem, ipDestino, portaDestino);
         novo.setACKbit((byte) 1);
         novo.setACKnum(tcp.getSeq() + 1);
-        sendData = Conversor.convertObjectToByteArray(novo);
+        sendData = ObjectConverter.convertObjectToByteArray(novo);
         DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, IPAddress, portaDestino);
         return sendPacket;
     }
@@ -173,12 +187,15 @@ public class SocketEmuladoTCP {
 
     private boolean contemInformacoesDoArquivo(SegmentoTCP tcp) {
         try {
-            String informacoes = (String) Conversor.convertByteArrayToObject(tcp.getPacote());
+            String informacoes = (String) ObjectConverter.convertByteArrayToObject(tcp.getPacote());
             String[] split = informacoes.split("#");
             nomeArquivo = split[0];
             tamanhoArquivo = Integer.parseInt(split[1]);
             corte = Integer.parseInt(split[2]);
-            janelaRecebimento = new JanelaRecebimento(numeroSequenciaInicialCliente + 2, tamanhoArquivo, corte);
+            System.out.println("nome do arquivo :"+nomeArquivo);
+            System.out.println("tamanho do arquivo:"+tamanhoArquivo);
+            System.out.println("tamanho dos pacotes:"+corte);
+            janelaRecebimento = new JanelaRecebimento(numeroSequenciaInicialCliente + 2 ,tcp.getPacote().length, tamanhoArquivo, corte);
             return true;
         } catch (Exception ex) {
             System.out.println(ex.getMessage());
@@ -189,12 +206,12 @@ public class SocketEmuladoTCP {
 
     private DatagramPacket enviaPedidoFechamentoConexao(SegmentoTCP tcp) throws UnknownHostException {
         estado = CONFIRMANDO_FECHAMENTO;
-        byte[] sendData = new byte[1024];
+        byte[] sendData = new byte[2048];
         InetAddress IPAddress = InetAddress.getByName(ipDestino);
         SegmentoTCP novo = new SegmentoTCP(ipOrigem, portaOrigem, ipDestino, portaDestino);
         novo.setFIN((byte) 1);
         novo.setSeq(numeroSequenciaInicialServidor);
-        sendData = Conversor.convertObjectToByteArray(novo);
+        sendData = ObjectConverter.convertObjectToByteArray(novo);
         DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, IPAddress, portaDestino);
         return sendPacket;
     }
@@ -208,15 +225,98 @@ public class SocketEmuladoTCP {
         buffer.sort(new SegmentoComparator());
     }
 
-    private DatagramPacket enviarACK(SegmentoTCP tcp) throws UnknownHostException {
-        byte[] sendData = new byte[1024];
+    private DatagramPacket enviarACK() throws UnknownHostException {
+        byte[] sendData = new byte[2048];
+        
         InetAddress IPAddress = InetAddress.getByName(ipDestino);
         SegmentoTCP novo = new SegmentoTCP(ipOrigem, portaOrigem, ipDestino, portaDestino);
         novo.setSeq(numeroSequenciaInicialServidor+ janelaRecebimento.indice());
         novo.setACKbit((byte) 1);
         novo.setACKnum(janelaRecebimento.getUltimoACK());
-        sendData = Conversor.convertObjectToByteArray(novo);
+        System.out.println("enviando ACK "+janelaRecebimento.getUltimoACK());
+        sendData = ObjectConverter.convertObjectToByteArray(novo);
         DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, IPAddress, portaDestino);
         return sendPacket;
     }
+
+    public int getNumeroSequenciaInicialCliente() {
+        return numeroSequenciaInicialCliente;
+    }
+
+    public void setNumeroSequenciaInicialCliente(int numeroSequenciaInicialCliente) {
+        this.numeroSequenciaInicialCliente = numeroSequenciaInicialCliente;
+    }
+
+    public int getNumeroSequenciaInicialServidor() {
+        return numeroSequenciaInicialServidor;
+    }
+
+    public void setNumeroSequenciaInicialServidor(int numeroSequenciaInicialServidor) {
+        this.numeroSequenciaInicialServidor = numeroSequenciaInicialServidor;
+    }
+
+    public int getEstado() {
+        return estado;
+    }
+
+    public void setEstado(int estado) {
+        this.estado = estado;
+    }
+
+    public JanelaRecebimento getJanelaRecebimento() {
+        return janelaRecebimento;
+    }
+
+    public void setJanelaRecebimento(JanelaRecebimento janelaRecebimento) {
+        this.janelaRecebimento = janelaRecebimento;
+    }
+
+    public List<SegmentoTCP> getPacotes() {
+        return pacotes;
+    }
+
+    public void setPacotes(List<SegmentoTCP> pacotes) {
+        this.pacotes = pacotes;
+    }
+
+    public List<SegmentoTCP> getBuffer() {
+        return buffer;
+    }
+
+    public void setBuffer(List<SegmentoTCP> buffer) {
+        this.buffer = buffer;
+    }
+
+    public int getTamanhoBuffer() {
+        return tamanhoBuffer;
+    }
+
+    public void setTamanhoBuffer(int tamanhoBuffer) {
+        this.tamanhoBuffer = tamanhoBuffer;
+    }
+
+    public String getNomeArquivo() {
+        return nomeArquivo;
+    }
+
+    public void setNomeArquivo(String nomeArquivo) {
+        this.nomeArquivo = nomeArquivo;
+    }
+
+    public int getTamanhoArquivo() {
+        return tamanhoArquivo;
+    }
+
+    public void setTamanhoArquivo(int tamanhoArquivo) {
+        this.tamanhoArquivo = tamanhoArquivo;
+    }
+
+    public int getCorte() {
+        return corte;
+    }
+
+    public void setCorte(int corte) {
+        this.corte = corte;
+    }
+    
 }

@@ -8,10 +8,14 @@ package br.uff.redes.cliente;
 import br.uff.redes.segmento.JanelaEnvio;
 import br.uff.redes.segmento.SegmentoTCP;
 import br.uff.redes.tools.ArraySpliter;
-import br.uff.redes.tools.Conversor;
+import br.uff.redes.tools.FileConverter;
+import br.uff.redes.tools.ObjectConverter;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.*;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
@@ -61,7 +65,7 @@ public class ClienteEmuladoTCP {
             boolean continua = true;
             Scanner teclado = new Scanner(System.in);
             while (continua) {
-               
+
                 System.out.println("digite S para desconectar, O para abrir conexao, A para enviar arquivo E para ver o estado");
                 String opcao = teclado.nextLine().toUpperCase();
                 if (opcao.equals("S")) {
@@ -70,21 +74,28 @@ public class ClienteEmuladoTCP {
                     } catch (IOException ex) {
                         Logger.getLogger(ClienteEmuladoTCP.class.getName()).log(Level.SEVERE, null, ex);
                     }
-                }else if(estado ==CONECTADO && opcao.equals("A")){
+                } else if (estado == CONECTADO && opcao.equals("A")) {
                     File file = getArquivo();
+                    try {
                         pacotes = getSegmentos(file);
-                        janela = new JanelaEnvio(pacotes);
+                        janela = new JanelaEnvio(pacotes, 5);
                         estado = ENVIANDO_ARQUIVO;
-                }else if(estado == DESCONECTADO && opcao.endsWith("O")){
+                    } catch (FileNotFoundException ex) {
+                        Logger.getLogger(ClienteEmuladoTCP.class.getName()).log(Level.SEVERE, null, ex);
+                    }
+                } else if (estado == DESCONECTADO && opcao.endsWith("O")) {
                     new Thread(new EnviadorDePacotes()).start();
                     new Thread(new RecebidorDeACKRunnable()).start();
-                }else if(opcao.equals("E")){
-                     System.out.println("estado: " +estado);
+                } else if (opcao.equals("E")) {
+                    System.out.println("estado: " + estado);
                 }
-            } 
+            }
         }
-         private List<SegmentoTCP> getSegmentos(File file) {
-            byte[] todos = Conversor.convertObjectToByteArray(file);
+
+        private List<SegmentoTCP> getSegmentos(File file) throws FileNotFoundException {
+
+            byte[] todos = FileConverter.convertFileToArray(file);
+            System.out.println("arquivo possui " + todos.length + " bytes");
             int tamanho = 1000;
             List<byte[]> partes = ArraySpliter.split(todos, tamanho);
             System.out.println("arquivo foi divido em " + partes.size() + " partes");
@@ -94,7 +105,7 @@ public class ClienteEmuladoTCP {
             //primeiro segmento vai apenas com informações do arquivo
             SegmentoTCP novo = new SegmentoTCP(ipOrig, portaOrig, ipDest, portaDest);
             novo.setSeq(seq);
-            byte[] informacoes = Conversor.convertObjectToByteArray(file.getName() + "#" + todos.length + "#" + tamanho);
+            byte[] informacoes = ObjectConverter.convertObjectToByteArray(file.getName() + "#" + todos.length + "#" + tamanho);
             novo.setPacote(informacoes);
             segmentos.add(novo);
             seq = seq + informacoes.length;
@@ -105,6 +116,9 @@ public class ClienteEmuladoTCP {
                 segmentos.add(novo);
                 seq = seq + parte.length;
             }
+           System.out.print("seq"+0+":"+segmentos.get(0).getSeq()+" ");
+           System.out.print("seq"+(segmentos.size()-1)+":"+segmentos.get(segmentos.size()-1).getSeq()+" ");
+            System.out.println("");
             return segmentos;
         }
 
@@ -124,18 +138,19 @@ public class ClienteEmuladoTCP {
             System.out.println("NOME: " + arquivo.getName());
             return arquivo;
         }
+
         public void solicitarFechamentoConexao() throws UnknownHostException, IOException {
             estado = CONECTADO;
             clienteSocket.send(pacotePedidoFechamentoConexao());
         }
 
         public DatagramPacket pacotePedidoFechamentoConexao() throws UnknownHostException {
-            byte[] sendData = new byte[1024];
+            byte[] sendData = new byte[2048];
             InetAddress IPAddress = InetAddress.getByName(ipDest);
             SegmentoTCP novo = new SegmentoTCP(ipOrig, portaOrig, ipDest, portaDest);
             novo.setFIN((byte) 1);
             novo.setSeq(numeroSequenciaInicialCliente);
-            sendData = Conversor.convertObjectToByteArray(novo);
+            sendData = ObjectConverter.convertObjectToByteArray(novo);
             DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, IPAddress, portaDest);
             return sendPacket;
         }
@@ -156,9 +171,10 @@ public class ClienteEmuladoTCP {
                         System.out.println("confirmou abertura de conexão");
                     } else if (estado == ENVIANDO_ARQUIVO) {
                         int seq = janela.proximoEnvio();
-                        System.out.println("enviando o segmento de numero "+ seq);
+                        if(seq != -1)
                         for (SegmentoTCP tcp : pacotes) {
                             if (tcp.getSeq() == seq) {
+                                System.out.println("enviando o segmento de numero " + seq);
                                 enviarPacote(tcp);
                             }
                         }
@@ -167,15 +183,12 @@ public class ClienteEmuladoTCP {
                         System.out.println("confirmou fechamento de conexão");
                     }
                 } catch (Exception ex) {
-                    System.err.println(ex.getMessage());
+                    Logger.getLogger(ClienteEmuladoTCP.class.getName()).log(Level.SEVERE, null, ex);
                 }
             }
         }
 
-
-
         // metodos de mudança de estado
-
         public void solicitarAberturaConexao() throws UnknownHostException, IOException {
             estado = SOLICITANDO_CONEXAO;
             numeroSequenciaInicialCliente = new Random().nextInt(9999);
@@ -197,48 +210,47 @@ public class ClienteEmuladoTCP {
         }
 
         //metodos para gerar os pacotes UDP
-
         public DatagramPacket pacotePedidoConexao() throws UnknownHostException {
-            byte[] sendData = new byte[1024];
+            byte[] sendData = new byte[2048];
             //pegar endereço do servidor
             InetAddress IPAddress = InetAddress.getByName(ipDest);
             //envia pedido de conexão
             SegmentoTCP novo = new SegmentoTCP(ipOrig, portaOrig, ipDest, portaDest);
             novo.setSYN((byte) 1);
             novo.setSeq(numeroSequenciaInicialCliente);
-            sendData = Conversor.convertObjectToByteArray(novo);
+            sendData = ObjectConverter.convertObjectToByteArray(novo);
             DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, IPAddress, portaDest);
             return sendPacket;
         }
 
         public DatagramPacket pacoteConfirmaConexao() throws UnknownHostException {
-            byte[] sendData = new byte[1024];
+            byte[] sendData = new byte[2048];
             //pegar endereço do servidor
             InetAddress IPAddress = InetAddress.getByName(ipDest);
             //envia pedido de conexão
             SegmentoTCP novo = new SegmentoTCP(ipOrig, portaOrig, ipDest, portaDest);
             novo.setACKbit((byte) 1);
             novo.setACKnum(numeroSequenciaInicialServidor + 1);
-            sendData = Conversor.convertObjectToByteArray(novo);
+            sendData = ObjectConverter.convertObjectToByteArray(novo);
             DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, IPAddress, portaDest);
             return sendPacket;
         }
 
         public DatagramPacket pacoteEnvioArquivo(SegmentoTCP tcp) throws UnknownHostException {
-            byte[] sendData = new byte[1024];
-            sendData = Conversor.convertObjectToByteArray(tcp);
+            byte[] sendData = new byte[2048];
+            sendData = ObjectConverter.convertObjectToByteArray(tcp);
             InetAddress IPAddress = InetAddress.getByName(ipDest);
             DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, IPAddress, portaDest);
             return sendPacket;
         }
 
         public DatagramPacket pacoteConfirmaFechamentoConexao() throws UnknownHostException {
-            byte[] sendData = new byte[1024];
+            byte[] sendData = new byte[2048];
             InetAddress IPAddress = InetAddress.getByName(ipDest);
             SegmentoTCP novo = new SegmentoTCP(ipOrig, portaOrig, ipDest, portaDest);
             novo.setACKbit((byte) 1);
             novo.setACKnum(numeroSequenciaInicialServidor + 1);
-            sendData = Conversor.convertObjectToByteArray(novo);
+            sendData = ObjectConverter.convertObjectToByteArray(novo);
             DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, IPAddress, portaDest);
             return sendPacket;
         }
@@ -249,13 +261,13 @@ public class ClienteEmuladoTCP {
         @Override
         public void run() {
             boolean continua = true;
-            
+
             while (continua) {
-                byte[] receiveData = new byte[1024];
+                byte[] receiveData = new byte[2048];
                 DatagramPacket receivePacket = new DatagramPacket(receiveData, receiveData.length);
                 try {
                     clienteSocket.receive(receivePacket);
-                    SegmentoTCP seg = (SegmentoTCP) Conversor.convertByteArrayToObject(receivePacket.getData());
+                    SegmentoTCP seg = (SegmentoTCP) ObjectConverter.convertByteArrayToObject(receivePacket.getData());
                     if (confirmaAbrirConexao(seg) && estado == SOLICITANDO_CONEXAO) {
                         System.out.println("servidor confirmou o pedido de conexão do conexao do cliente");
                         estado = CONEXAO_ACEITA;
@@ -267,7 +279,7 @@ public class ClienteEmuladoTCP {
                         System.out.println("servidor confirmou pedido de fechamento do cliente");
                         estado = DESCONECTADO;
                     } else if (estado == ENVIANDO_ARQUIVO) {
-                        System.out.println("chegou um ACK de numero "+seg.getACKnum());
+                        System.out.println("chegou um ACK de numero " + seg.getACKnum());
                         janela.processa(seg.getACKnum());
                     }
                 } catch (IOException ex) {
@@ -277,9 +289,7 @@ public class ClienteEmuladoTCP {
         }
 
         // metodos que checam qual é a confirmação
-
         public boolean confirmaAbrirConexao(SegmentoTCP seg) {
-            System.out.println("ACKnum "+seg.getACKnum());
             return (seg.getSYN() == 1 && seg.getACKbit() == 1 && seg.getACKnum() == (numeroSequenciaInicialCliente + 1));
         }
 
