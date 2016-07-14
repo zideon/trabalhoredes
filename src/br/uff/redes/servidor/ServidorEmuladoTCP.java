@@ -50,6 +50,9 @@ class ServidorEmuladoTCP {
                     } else {
                         serverSocket.send(data);
                         System.out.println("enviou data");
+                        if(cliente.getEstado()==SocketEmuladoTCP.DESCONECTADO){
+                            clientes.remove(cliente);
+                        }
                     }
 
                 } catch (Exception ex) {

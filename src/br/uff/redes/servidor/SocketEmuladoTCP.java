@@ -161,6 +161,8 @@ public class SocketEmuladoTCP {
                 estado = CONECTADO;
                 return enviarACKArquivoCompleto();
             }
+        }else{
+            System.out.println("não é uma solicitação valida");
         }
         return null;
     }

@@ -33,6 +33,7 @@ public class ClienteEmuladoTCP {
     public static final Integer CONFIRMANDO_FECHAMENTO = 6;
     public static final Integer ENVIANDO_ARQUIVO = 2;
     public static final Integer DESCONECTADO = 4;
+    public static final Integer DESLIGANDOTHREADS = 7;
 
     private volatile Integer numeroSequenciaInicialCliente;
     private volatile Integer numeroSequenciaInicialServidor;
@@ -47,6 +48,9 @@ public class ClienteEmuladoTCP {
 
     private final DatagramSocket clienteSocket;
     private volatile List<SegmentoTCP> pacotes;
+
+    private volatile boolean continuaEnviando;
+    private volatile boolean continuaRecebendo;
 
     public ClienteEmuladoTCP(String ipDest, int portaDest, int portaOrig) throws SocketException, UnknownHostException {
         this.ipDest = ipDest;
@@ -68,7 +72,7 @@ public class ClienteEmuladoTCP {
 
                 System.out.println("digite S para desconectar, O para abrir conexao, A para enviar arquivo E para ver o estado");
                 String opcao = teclado.nextLine().toUpperCase();
-                if (opcao.equals("S")) {
+                if (estado!=DESCONECTADO && opcao.equals("S")) {
                     try {
                         solicitarFechamentoConexao();
                     } catch (IOException ex) {
@@ -88,6 +92,14 @@ public class ClienteEmuladoTCP {
                     new Thread(new RecebidorDeACKRunnable()).start();
                 } else if (opcao.equals("E")) {
                     System.out.println("estado: " + estado);
+                }else if(estado==DESCONECTADO && opcao.equals("A")){
+                    System.out.println("por favor conecte-se antes de enviar o arquivo");
+                }else if(estado!=DESCONECTADO && opcao.equals("O")){
+                    System.out.println("cliente ja se encontra conectado");
+                }else if(estado==DESCONECTADO && opcao.equals("S")){
+                    System.out.println("cliente ja estava desconectado");
+                }else{
+                    System.out.println("opção invalida");
                 }
             }
         }
@@ -143,7 +155,7 @@ public class ClienteEmuladoTCP {
         }
 
         public void solicitarFechamentoConexao() throws UnknownHostException, IOException {
-            estado = CONECTADO;
+            estado = SOLICITANDO_FECHAMENTO;
             clienteSocket.send(pacotePedidoFechamentoConexao());
         }
 
@@ -159,14 +171,71 @@ public class ClienteEmuladoTCP {
         }
     }
 
+    public class RecebidorDeACKRunnable implements Runnable {
+
+        @Override
+        public void run() {
+            continuaRecebendo = true;
+
+            while (continuaRecebendo) {
+                byte[] receiveData = new byte[20480];
+                DatagramPacket receivePacket = new DatagramPacket(receiveData, receiveData.length);
+                try {
+                    clienteSocket.receive(receivePacket);
+                    SegmentoTCP seg = (SegmentoTCP) ObjectConverter.convertByteArrayToObject(receivePacket.getData());
+                    if (confirmaAbrirConexao(seg) && estado == SOLICITANDO_CONEXAO) {
+                        System.out.println("servidor confirmou o pedido de conexão do conexao do cliente");
+                        estado = CONEXAO_ACEITA;
+                        numeroSequenciaInicialServidor = seg.getSeq();
+                    } else if (servidorSolicitouFecharConexao(seg)) {
+                        System.out.println("servidor solocitou fechamento de conexao");
+                        estado = CONFIRMANDO_FECHAMENTO;// envia ack de resposta 
+                    } else if (estado == SOLICITANDO_FECHAMENTO && servidorConfirmouFecharConexao(seg)) {
+                        System.out.println("servidor confirmou pedido de fechamento do cliente");
+                        estado = DESCONECTADO;
+                        continuaRecebendo=false;
+                        continuaEnviando=false;
+                    } else if (estado == ENVIANDO_ARQUIVO) {
+                        System.out.println("chegou um ACK de numero " + seg.getACKnum());
+                        if (!terminou(seg)) {
+                            janela.processa(seg.getACKnum());
+                        } else {
+                            System.out.println("terminou envio do arquivo");
+                            estado = CONECTADO;
+                        }
+                    }
+                } catch (IOException ex) {
+                    Logger.getLogger(ClienteEmuladoTCP.class.getName()).log(Level.SEVERE, null, ex);
+                }
+            }
+        }//7246902 7266879
+
+        // metodos que checam qual é a confirmação
+        public boolean confirmaAbrirConexao(SegmentoTCP seg) {
+            return (seg.getSYN() == 1 && seg.getACKbit() == 1 && seg.getACKnum() == (numeroSequenciaInicialCliente + 1));
+        }
+
+        public boolean servidorSolicitouFecharConexao(SegmentoTCP seg) {
+            return seg.getFIN() == 1;
+        }
+
+        public boolean servidorConfirmouFecharConexao(SegmentoTCP seg) {
+            return (seg.getACKnum() == numeroSequenciaInicialCliente + 1) && seg.getACKbit() == 1;
+        }
+
+        private boolean terminou(SegmentoTCP seg) {
+            return seg.getACKnum() == -100 && seg.getSeq() == numeroSequenciaInicialServidor;
+        }
+    }
+
     public class EnviadorDePacotes implements Runnable {
 
         @Override
         public void run() {
-            boolean continua = true;
-            while (continua) {
+            continuaEnviando = true;
+            while (continuaEnviando) {
                 try {
-                    if (estado == DESCONECTADO) {
+                    if (estado == DESCONECTADO && continuaRecebendo) {
                         solicitarAberturaConexao();
                         System.out.println("solicitou abertura de conexão");
                     } else if (estado == CONEXAO_ACEITA) {
@@ -186,6 +255,9 @@ public class ClienteEmuladoTCP {
 
                     } else if (estado == CONFIRMANDO_FECHAMENTO) {
                         confirmarFechamentoConexao();
+                        estado=DESCONECTADO;
+                        continuaEnviando=false;
+                        continuaRecebendo=false;
                         System.out.println("confirmou fechamento de conexão");
                     }
                 } catch (Exception ex) {
@@ -259,61 +331,6 @@ public class ClienteEmuladoTCP {
             sendData = ObjectConverter.convertObjectToByteArray(novo);
             DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, IPAddress, portaDest);
             return sendPacket;
-        }
-    }
-
-    public class RecebidorDeACKRunnable implements Runnable {
-
-        @Override
-        public void run() {
-            boolean continua = true;
-
-            while (continua) {
-                byte[] receiveData = new byte[20480];
-                DatagramPacket receivePacket = new DatagramPacket(receiveData, receiveData.length);
-                try {
-                    clienteSocket.receive(receivePacket);
-                    SegmentoTCP seg = (SegmentoTCP) ObjectConverter.convertByteArrayToObject(receivePacket.getData());
-                    if (confirmaAbrirConexao(seg) && estado == SOLICITANDO_CONEXAO) {
-                        System.out.println("servidor confirmou o pedido de conexão do conexao do cliente");
-                        estado = CONEXAO_ACEITA;
-                        numeroSequenciaInicialServidor = seg.getSeq();
-                    } else if (servidorSolicitouFecharConexao(seg)) {
-                        System.out.println("servidor solocitou fechamento de conexao");
-                        estado = CONFIRMANDO_FECHAMENTO;// envia ack de resposta 
-                    } else if (estado == SOLICITANDO_FECHAMENTO && servidorConfirmouFecharConexao(seg)) {
-                        System.out.println("servidor confirmou pedido de fechamento do cliente");
-                        estado = DESCONECTADO;
-                    } else if (estado == ENVIANDO_ARQUIVO) {
-                        System.out.println("chegou um ACK de numero " + seg.getACKnum());
-                        if (!terminou(seg)) {
-                            janela.processa(seg.getACKnum());
-                        } else {
-                            System.out.println("terminou envio do arquivo");
-                            estado = CONECTADO;
-                        }
-                    }
-                } catch (IOException ex) {
-                    Logger.getLogger(ClienteEmuladoTCP.class.getName()).log(Level.SEVERE, null, ex);
-                }
-            }
-        }//7246902 7266879
-
-        // metodos que checam qual é a confirmação
-        public boolean confirmaAbrirConexao(SegmentoTCP seg) {
-            return (seg.getSYN() == 1 && seg.getACKbit() == 1 && seg.getACKnum() == (numeroSequenciaInicialCliente + 1));
-        }
-
-        public boolean servidorSolicitouFecharConexao(SegmentoTCP seg) {
-            return seg.getFIN() == 1;
-        }
-
-        public boolean servidorConfirmouFecharConexao(SegmentoTCP seg) {
-            return (seg.getACKnum() == numeroSequenciaInicialCliente + 1) && seg.getACKbit() == 1;
-        }
-
-        private boolean terminou(SegmentoTCP seg) {
-            return seg.getACKnum() == -100 && seg.getSeq() == numeroSequenciaInicialServidor;
         }
     }
 
