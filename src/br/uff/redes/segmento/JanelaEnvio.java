@@ -20,12 +20,13 @@ public class JanelaEnvio {
     public static final int INDISPONIVEL = 1;
     public static final int ACKED = 1;
     public static final int ESPERANDOACK = 2;
-    public static final Integer TEMPO = 10;
+    public static final Integer TEMPO = 30;
     //numero de sequencia e estado
     List<Integer> numerosSeq;
     List<Integer> estados;
-    int tamanho;
-    int limiteJanela;
+    int cwnd;
+    int ssthresh;
+
     int limiteInferior;
     int qtdRepeticoes;
     int ACKrepetido;
@@ -39,12 +40,12 @@ public class JanelaEnvio {
         this.numerosSeq = new ArrayList<>();
         this.estados = new ArrayList<>();
         this.limiteInferior = 0;
-        this.tamanho = 1;
+        this.cwnd = 1;
         this.ACKrepetido = -1;
 
         for (int i = 0; i < segmentos.size(); i++) {
             numerosSeq.add(segmentos.get(i).getSeq());
-            if (i < tamanho) {
+            if (i < cwnd) {
                 estados.add(DISPONIVEL);
             } else {
                 estados.add(INDISPONIVEL);
@@ -67,29 +68,41 @@ public class JanelaEnvio {
                     if (qtdRepeticoes == 3) {
                         System.out.println("segmento perdido 3 acks repetidos");
                         for (int i = limiteInferior; i <= getLimite(); i++) {
-                            estados.set(i, DISPONIVEL);
+                            if (estados.get(i) == ESPERANDOACK) {
+                                estados.set(i, DISPONIVEL);
+                            }
                         }
-//                        tamanho=1;
+
+                        ssthresh = cwnd / 2;
+                        cwnd = ssthresh;
                         qtdRepeticoes = 0;
+                        for (int i = limiteInferior + ssthresh + 1; i < numerosSeq.size(); i++) {
+                            estados.set(i, INDISPONIVEL);
+                        }
                     }
                 }
                 //andando com a janela após receber os ACKS acumulativos
             } else {
                 int qtdAvancos = 0;
-                for (int i = n - 1; i >= limiteInferior; i--) {
-                    if (estados.get(i) == ESPERANDOACK) {
-                        System.out.println("ACKED " + numerosSeq.get(i));
-                        estados.set(i, ACKED);
-                        qtdAvancos++;
-                        if (tempoCorrendo && i == temporizado) {
-                            tempoCorrendo = false;
-                            timer.cancel();
-                            temporizado = 0;
-                        }
+                int j = n - 1;
+            
+                while (j>0 && estados.get(j) == ESPERANDOACK) {
+                    System.out.println("ACKED " + numerosSeq.get(j));
+                    estados.set(j, ACKED);
+                    qtdAvancos++;
+                    if (tempoCorrendo && j == temporizado) {
+                        tempoCorrendo = false;
+                        timer.cancel();
+                        temporizado = 0;
                     }
+                    j--;
                 }
                 limiteInferior = limiteInferior + qtdAvancos;
-                tamanho += qtdAvancos;
+                if (cwnd >= ssthresh && qtdAvancos > 0) {
+                    cwnd += 1;
+                } else {
+                    cwnd += qtdAvancos;
+                }
                 //andar com a janela
 
                 for (int i = limiteInferior; i <= getLimite(); i++) {
@@ -97,14 +110,14 @@ public class JanelaEnvio {
                         estados.set(i, DISPONIVEL);
                     }
                 }
-                System.out.println("tamanho " + tamanho);
+                System.out.println("tamanho " + cwnd);
 //                System.out.println("limite inferior " + limiteInferior);
             }
         }
     }
 
     public int proximoEnvio() {
-     
+
         for (int i = limiteInferior; i <= getLimite(); i++) {
             if (estados.get(i) == DISPONIVEL) {
                 if (!tempoCorrendo) {
@@ -126,11 +139,15 @@ public class JanelaEnvio {
         public void run() {
             System.out.println("estouro do temporizador");
             // reenvia todos que estão encaminhados
-          
+
             for (int i = limiteInferior; i <= getLimite(); i++) {
                 estados.set(i, DISPONIVEL);
             }
-            tamanho=1;
+            ssthresh = cwnd / 2;
+            for (int i = limiteInferior + ssthresh + 1; i < numerosSeq.size(); i++) {
+                estados.set(i, INDISPONIVEL);
+            }
+            cwnd = 1;
             timer.cancel();
         }
     }
@@ -140,7 +157,7 @@ public class JanelaEnvio {
     }
 
     public int getLimite() {
-        int limite = limiteInferior + tamanho;
+        int limite = limiteInferior + cwnd;
         if (limite >= numerosSeq.size()) {
             limite = numerosSeq.size() - 1;
         }

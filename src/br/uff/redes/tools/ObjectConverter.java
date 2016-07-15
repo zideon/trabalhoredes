@@ -16,8 +16,10 @@ import java.io.ObjectOutputStream;
  * @author fabio
  */
 public class ObjectConverter {
+
     /**
      * Converte um Objeto para um array de bytes
+     *
      * @param object
      * @return byte[]
      */
@@ -34,28 +36,23 @@ public class ObjectConverter {
         } catch (IOException e) {
             e.printStackTrace();
         }
-         
+
         return bytes;
     }
- 
+
     /**
      * Converte um array de bytes para um objeto
+     *
      * @param bytes
      * @return object
      */
-    public static Object convertByteArrayToObject(byte[] bytes) {
+    public static Object convertByteArrayToObject(byte[] bytes) throws IOException, ClassNotFoundException {
         Object object = null;
- 
-        try {
-            ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream(bytes);
-            ObjectInputStream objectInputStream = new ObjectInputStream(byteArrayInputStream);
-            object = objectInputStream.readObject();
-        } catch (IOException e) {
-            e.printStackTrace();
-        } catch (ClassNotFoundException e) {
-            e.printStackTrace();
-        }
-         
+
+        ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream(bytes);
+        ObjectInputStream objectInputStream = new ObjectInputStream(byteArrayInputStream);
+        object = objectInputStream.readObject();
+        objectInputStream.close();
         return object;
     }
 }

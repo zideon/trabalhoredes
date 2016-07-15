@@ -224,7 +224,8 @@ public class SocketEmuladoTCP {
             return true;
 
         }catch (Exception ex) {
-            System.out.println(ex.getMessage());
+            System.out.println("pacote recebido não contem informações , possivel reenvio de pacotede"
+                    + " outro arquivo ja enviado");
             return false;
         }
 

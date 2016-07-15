@@ -206,6 +206,8 @@ public class ClienteEmuladoTCP {
                     }
                 } catch (IOException ex) {
                     Logger.getLogger(ClienteEmuladoTCP.class.getName()).log(Level.SEVERE, null, ex);
+                } catch (ClassNotFoundException ex) {
+                    Logger.getLogger(ClienteEmuladoTCP.class.getName()).log(Level.SEVERE, null, ex);
                 }
             }
         }//7246902 7266879
