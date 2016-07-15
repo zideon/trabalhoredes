@@ -34,7 +34,7 @@ public class ClienteEmuladoTCP {
     public static final Integer ENVIANDO_ARQUIVO = 2;
     public static final Integer DESCONECTADO = 4;
     public static final Integer DESLIGANDOTHREADS = 7;
-
+  
     private volatile Integer numeroSequenciaInicialCliente;
     private volatile Integer numeroSequenciaInicialServidor;
 
@@ -82,7 +82,7 @@ public class ClienteEmuladoTCP {
                     File file = getArquivo();
                     try {
                         pacotes = getSegmentos(file);
-                        janela = new JanelaEnvio(pacotes, 5);
+                        janela = new JanelaEnvio(pacotes);
                         estado = ENVIANDO_ARQUIVO;
                     } catch (FileNotFoundException ex) {
                         Logger.getLogger(ClienteEmuladoTCP.class.getName()).log(Level.SEVERE, null, ex);
@@ -269,7 +269,8 @@ public class ClienteEmuladoTCP {
         // metodos de mudança de estado
         public void solicitarAberturaConexao() throws UnknownHostException, IOException {
             estado = SOLICITANDO_CONEXAO;
-            numeroSequenciaInicialCliente = new Random().nextInt(9999);
+//            numeroSequenciaInicialCliente = new Random().nextInt(9999);
+            numeroSequenciaInicialCliente = 0;
             clienteSocket.send(pacotePedidoConexao());
         }
 

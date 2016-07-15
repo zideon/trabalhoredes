@@ -77,7 +77,6 @@ public class JanelaRecebimento {
                         estados.set(indice, RECEBIDO);
                         if (indice + 1 < numerosSeq.size()) {
                             ultimoACK = numerosSeq.get(indice + 1);
-
                         } 
                         return true;
                     }

@@ -59,7 +59,8 @@ public class SocketEmuladoTCP {
         this.portaOrigem = portaOrigem;
         this.ipDestino = ipDestino;
         this.portaDestino = portaDestino;
-        this.numeroSequenciaInicialServidor = new Random().nextInt(9999);
+//        this.numeroSequenciaInicialServidor = new Random().nextInt(9999);
+        this.numeroSequenciaInicialServidor =0;
         this.pacotes = new ArrayList<>();
         this.buffer = new ArrayList<>();
         estado = DESCONECTADO;
@@ -127,6 +128,7 @@ public class SocketEmuladoTCP {
                     for (SegmentoTCP pacote : buffer) {
                         if(janelaRecebimento.processa(pacote.getSeq())){
                             buffer.remove(pacote);
+                            System.out.println("usou pacote do buffer para elementos fora de ordem");
                         }
                     }
                 }else{// aqui que vou fazer espaço do buffer digamos que seja 4
@@ -143,10 +145,11 @@ public class SocketEmuladoTCP {
             } else {
                 System.out.println("TERMINOU TRANSFERENCIA DO ARQUIVO");
                 List<byte[]> bytes = new ArrayList<>();
-                System.out.println("FORAM BAIXADAS "+ bytes.size()+ " PARTES");
+                
                 for (SegmentoTCP pacote : pacotes) {
                     bytes.add(pacote.getPacote());
                 }
+                System.out.println("FORAM BAIXADAS "+ bytes.size()+ " PARTES");
                 byte[] arquivoCompleto = ArrayJoin.combine(bytes);
                 System.out.println("arquivo completo tem "+arquivoCompleto.length+" bytes");
                 try {
